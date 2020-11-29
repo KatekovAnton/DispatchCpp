@@ -53,7 +53,11 @@ if (PROJECT_OS_MACOS)
     include_directories("${SRC_DIR}/platform/mac")
 endif()
 if (PROJECT_OS_WIN32)
-    
+    # tested with
+    # cmake -G "Visual Studio 16 2019" ..
+    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/win32/platform_win.cpp")
+    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/win32/platform_win.h")
+
 endif()
 if (PROJECT_OS_LINUX)
     
