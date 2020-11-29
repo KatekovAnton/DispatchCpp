@@ -27,40 +27,38 @@ endif()
 
 
 
+# platform-independant sources
 set(SRC_DIR "${PROJECT_SOURCE_DIR}/src")
 include_directories("${SRC_DIR}")
-include_directories("${SRC_DIR}/platform")
-
-
+include_directories("${PROJECT_SOURCE_DIR}/platform")
 
 file(GLOB_RECURSE PROJECT_SOURCES 
     ${SRC_DIR}/*.cpp
     ${SRC_DIR}/*.hpp
     ${SRC_DIR}/*.h
-    ${SRC_DIR}/platform/*.cpp
-    ${SRC_DIR}/platform/*.hpp
-    ${SRC_DIR}/platform/*.h
 )
 
+# platform-dependant sources
 if (PROJECT_OS_MACOS)
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/mac/platform_mac.mm")
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/mac/platform_mac.h")
-
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/mac/smc.h")
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/mac/SMCWrapper.h")
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/mac/SMCWrapper.m")
+    # tested with Xcode 
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/platform_mac.mm")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/platform_mac.h")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/smc.h")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/SMCWrapper.h")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/SMCWrapper.m")
 
     include_directories("${SRC_DIR}/platform/mac")
 endif()
 if (PROJECT_OS_WIN32)
     # tested with
     # cmake -G "Visual Studio 16 2019" ..
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/win32/platform_win.cpp")
-    list (APPEND PROJECT_SOURCES "${SRC_DIR}/platform/win32/platform_win.h")
-
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/win32/platform_win.cpp")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/win32/platform_win.h")
+    
+    include_directories("${SRC_DIR}/platform/win32")
 endif()
 if (PROJECT_OS_LINUX)
-    
+    # TODO
 endif()
 
 
