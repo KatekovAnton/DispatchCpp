@@ -30,7 +30,7 @@ endif()
 # platform-independant sources
 set(SRC_DIR "${PROJECT_SOURCE_DIR}/src")
 include_directories("${SRC_DIR}")
-include_directories("${PROJECT_SOURCE_DIR}/platform")
+include_directories("${SRC_DIR}/platform")
 
 file(GLOB_RECURSE PROJECT_SOURCES 
     ${SRC_DIR}/*.cpp

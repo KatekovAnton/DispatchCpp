@@ -22,8 +22,6 @@ class Thread
     int        m_running;
     int        m_detached;
     
-    std::mutex m_SuspendMutex;
-    
 public:
     
     Thread();
@@ -32,9 +30,6 @@ public:
     void start();
     void join();
     void detach();
-    
-    void waitForUnblock();
-    void unblock();
     
     std::thread::id getId();
     

@@ -11,6 +11,8 @@
 
 #include "Thread.h"
 #include <atomic>
+#include <mutex>
+#include <string>
 
 
 

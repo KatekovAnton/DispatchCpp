@@ -59,26 +59,6 @@ void Thread::detach()
     }
 }
 
-void Thread::waitForUnblock()
-{
-    if (m_running == 0) {
-        return;
-    }
-    
-    m_SuspendMutex.lock();
-    m_SuspendMutex.lock();
-    m_SuspendMutex.unlock();
-}
-
-void Thread::unblock()
-{
-    if (m_running == 0) {
-        return;
-    }
-
-    m_SuspendMutex.unlock();
-}
-
 std::thread::id Thread::getId()
 {
     assert(m_running == 1);
