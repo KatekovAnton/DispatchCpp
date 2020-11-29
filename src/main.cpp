@@ -365,6 +365,31 @@ void testNestedWaitsFromGroup()
 
 
 
+void testBlockMainThread() 
+{
+    Timer t;
+    t.start();
+    
+    Counter completed;
+    int count = 20 * complexityMultiplier;
+    std::vector<DispatchWork> worksNested;
+    
+    for (int i = 0; i < count; i++) {
+        worksNested.push_back([i, &completed](DispatchOperation *operation){
+            heavyCalculation(100000);
+            completed.increase();
+            printf("complete blocking main %d!\n", i);
+        });
+    }
+    
+    Dispatch::SharedDispatch()->PerformAndWait(worksNested, nullptr);
+    assert(completed.get() == count);
+    t.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    printf("concurrent way with blocking main took %d\n", (int)(t.duration() * 1000));
+}
+
+
 
 #if defined PROJECTN_TARGET_OS_WIN
 int main()
@@ -399,10 +424,14 @@ int main(int argc, char **argv)
     testNestedWaitsFromGroup();
     printf("--- Temperature: %.03f°C\n", Platform::CurrentPlatform()->GetCPUTemperature());
     
+    printf("--- Test with blocking main thread\n");
+    testBlockMainThread();
+    printf("--- Temperature: %.03f°C\n", Platform::CurrentPlatform()->GetCPUTemperature());
+    
     Dispatch *d = Dispatch::SharedDispatch();
     int threadsSpawned = DispatchThread::GetStatistic().GetSpawned();
-    int a = 0;
-    a++;
+    
+    printf("--- Total threads spawned: %d\n", threadsSpawned);
     
 //    {
 //        Timer t;

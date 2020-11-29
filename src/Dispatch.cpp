@@ -597,28 +597,34 @@ void Dispatch::PerformAndWait(const std::vector<DispatchWork> &works, DispatchGr
     }
     
     DispatchBackgroundQueueSearchResult q;
-    
-    _mutexBackgroundQueues.Lock("PerformAndWait");
-    {
-        q = GetCurrentBackgroundQueue(false);
-        assert(q._queue != nullptr); // thread of main queue or other thread not managed by dispatch
-        q._queue->Lock("PerformAndWait");
-        q._queue->_sleep = true;
+    if (!IsMainThread()) {
+        _mutexBackgroundQueues.Lock("PerformAndWait");
+        {
+            q = GetCurrentBackgroundQueue(false);
+            assert(q._queue != nullptr); // thread of main queue or other thread not managed by dispatch
+            q._queue->Lock("PerformAndWait");
+            q._queue->_sleep = true;
+            
+            _backgroundQueues.erase(_backgroundQueues.begin() + q._queueIndex);
+            _backgroundQueuesCount = _backgroundQueues.size();
+        }
+        BackgroundQueueEvacuate(q._queue, false, false);
+        q._queue->Unlock();
+        _mutexBackgroundQueues.Unlock();
         
-        _backgroundQueues.erase(_backgroundQueues.begin() + q._queueIndex);
-        _backgroundQueuesCount = _backgroundQueues.size();
+        _mutexBackgroundQueuesPaused.lock();
+        _backgroundQueuesPaused.push_back(q._queue);
+        _mutexBackgroundQueuesPaused.unlock();
     }
-    BackgroundQueueEvacuate(q._queue, false, false);
-    q._queue->Unlock();
-    _mutexBackgroundQueues.Unlock();
-    
-    _mutexBackgroundQueuesPaused.lock();
-    _backgroundQueuesPaused.push_back(q._queue);
-    _mutexBackgroundQueuesPaused.unlock();
     
     std::shared_ptr<DispatchLock> sync = std::shared_ptr<DispatchLock>(new DispatchLock());
     auto result = SharedDispatch()->PerformGroup(works, [sync, &q](DispatchOperation *o)->void {
-        Dispatch::SharedDispatch()->BackgroundQueueWaitDone(q._queue, sync);
+        if (q._queue) {
+            Dispatch::SharedDispatch()->BackgroundQueueWaitDone(q._queue, sync);
+        }
+        else {
+            sync->Unlock();
+        }
         assert(!sync->_locked);
     });
     if (groupCallback != nullptr) {
