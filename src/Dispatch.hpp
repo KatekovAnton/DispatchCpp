@@ -16,6 +16,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <condition_variable>
 #include <queue>
 #include <set>
 #include "DispatchThread.hpp"
@@ -54,6 +55,11 @@ typedef struct _DispatchBackgroundQueueSearchResult {
     
     DispatchBackgroundQueueP _queue;
     size_t _queueIndex = 0;
+    
+    _DispatchBackgroundQueueSearchResult()
+    :_queue(nullptr)
+    ,_queueIndex(0)
+    {}
     
 } DispatchBackgroundQueueSearchResult;
 
@@ -176,6 +182,7 @@ protected:
     std::mutex _mutexBackgroundQueuesToRemove;
     
     std::vector<DispatchBackgroundQueueP> _backgroundQueuesPaused;
+    std::vector<DispatchBackgroundQueueP> _backgroundQueuesSpecial;
     std::vector<DispatchBackgroundQueueP> _backgroundQueues;
     std::mutex _mutexBackgroundQueuesPaused;
     
@@ -204,7 +211,7 @@ public:
     Dispatch();
     static Dispatch *SharedDispatch();
     
-    DispatchQueueP GetFreeQueue(bool lock, DispatchQueue *exceptQueue);
+    DispatchQueueP GetFreeQueue(bool lock, DispatchQueue *exceptQueue, bool lockUnlockDispatch);
     
     void FlushMainThread();
     bool IsMainThread();

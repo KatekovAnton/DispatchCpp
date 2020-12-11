@@ -65,8 +65,8 @@ bool DispatchMutex::TryLock(const std::string &from)
 
 void DispatchMutex::Lock(const std::string &from)
 {
-    _locked = true;
     _mutex.lock();
+    _locked = true;
     _lockedFrom = from;
 }
 
