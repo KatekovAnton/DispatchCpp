@@ -69,8 +69,9 @@ void DispatchReadWriteLock::WriteUnlock() {
 
 
 DispatchLock::DispatchLock()
-:_locked(false)
-,_processed(false)
+: _locked (true)
+, _processed (false)
+, lk (_m)
 {}
 
 DispatchLock::~DispatchLock()
@@ -83,9 +84,6 @@ DispatchLock::~DispatchLock()
 
 void DispatchLock::Lock()
 {
-    _locked = true;
-    _processed = false;
-    std::unique_lock<std::mutex> lk(_m);
     _cv.wait(lk, [this] {
         return this->_processed;
     });
@@ -164,8 +162,6 @@ void DispatchOperationGroup::ExecuteOne(DispatchQueue *queue, Dispatch *owner, b
     
     auto work = _pendingWorks.front();
     _pendingWorks.pop();
-    _haveMoreToRun = _pendingWorks.size() > 0 || _pendingCompletionWork != nullptr;
-    _readyToRunMore = _pendingWorks.size() > 0 || (_executingOperations.size() == 0 && _pendingCompletionWork != nullptr);
     
     auto operation = DispatchOperationP(new DispatchOperation([work, this, owner](DispatchOperation *operation) {
         if (!this->IsCancelled()) {
@@ -176,6 +172,10 @@ void DispatchOperationGroup::ExecuteOne(DispatchQueue *queue, Dispatch *owner, b
     }));
     _executingOperations.push_back(operation);
     _executing = true;
+    
+    _haveMoreToRun = _pendingWorks.size() > 0 || _pendingCompletionWork != nullptr;
+    _readyToRunMore = _pendingWorks.size() > 0 || (_executingOperations.size() == 0 && _pendingCompletionWork != nullptr);
+    
     _mutex.unlock();
     
     queue->AddOperation(operation, !queueLocked);
@@ -194,9 +194,7 @@ void DispatchOperationGroup::ExecutionOfWorkFinished(DispatchOperation *operatio
         _haveMoreToRun = _pendingWorks.size() > 0 || _pendingCompletionWork != nullptr;
         _readyToRunMore = _pendingWorks.size() > 0 || (_executingOperations.size() == 0 && _pendingCompletionWork != nullptr);
     }
-    else {
-        _executing = _executingOperations.size() != 0 || _executingCompletion != nullptr;
-    }
+    _executing = _executingOperations.size() != 0 || _executingCompletion != nullptr;
     _mutex.unlock();
 }
 
@@ -241,12 +239,61 @@ void Dispatch::OnAssigned()
     _mainThreadId = std::this_thread::get_id();
 }
 
-DispatchQueueP Dispatch::GetFreeQueue(bool lock, DispatchQueue *exceptQueue, bool lockUnlockDispatch)
+DispatchQueueP Dispatch::GetLeastBusyQueue(bool lockQueue, DispatchQueue *exceptQueue, bool lockUnlockDispatch)
 {
-    DispatchBackgroundQueueP q = nullptr;
-    DispatchBackgroundQueueP qlowest = nullptr;
-    size_t qlowestCount = 0xffffffff;
+    if (lockUnlockDispatch) {
+        _mutexBackgroundQueues.Lock("GetFreeQueue");
+    }
     
+    size_t minimumCount = 0xffffffff;
+    DispatchBackgroundQueueP minimumQueue = nullptr;
+    
+    // schedule only to first threads, reasonable for cpu
+    // last threads will finish and die
+    int total = _backgroundQueuesCount > _backgroundQueuesDesiredCount ? _backgroundQueuesDesiredCount : _backgroundQueuesCount;
+    for (size_t i = 0; i < total; i++) 
+    {
+        auto qt = _backgroundQueues[i];
+        if (qt.get() == exceptQueue) {
+            continue;
+        }
+        if (qt->_operationsCount > minimumCount) {
+            continue;
+        }
+
+        if (lockQueue) {   
+            qt->Lock("GetFreeQueue 1");
+        }
+        
+        // check if it just has changed
+        if (qt->_removing ||
+            qt->_operationsCount > minimumCount) {
+                
+            if (lockQueue) {
+                qt->Unlock();
+            }
+            continue;
+        }
+        
+        if (minimumQueue != nullptr) {
+            minimumQueue->Unlock();
+            minimumQueue = nullptr;
+        }
+        minimumQueue = qt;
+        minimumCount = minimumQueue->_operationsCount;
+    }
+    
+    if (lockUnlockDispatch) {
+        _mutexBackgroundQueues.Unlock();
+    }
+    
+    assert(minimumQueue != nullptr);
+    
+    return minimumQueue;
+}
+
+DispatchQueueP Dispatch::GetFreeQueue(bool lockQueue, DispatchQueue *exceptQueue, bool lockUnlockDispatch)
+{
     if (lockUnlockDispatch) {
         _mutexBackgroundQueues.Lock("GetFreeQueue");
     }
@@ -260,63 +307,62 @@ DispatchQueueP Dispatch::GetFreeQueue(bool lock, DispatchQueue *exceptQueue, boo
         if (qt.get() == exceptQueue) {
             continue;
         }
-        if (qt->_disabled) {
+        if (qt->_operationsCount != 0) {
             continue;
         }
+        if (!qt->GetIsReady()) {
+            continue;
+        }
+        
+        // sleep queues should not be in this array
         assert(!qt->_sleep);
-        size_t qtc = qt->_operationsCount;
-        if (qtc == 0) {
-            if (qt->GetIsReady()) {
-                // locks
-                if (lock) {
-                    qt->Lock("GetFreeQueue 1");
-                    assert(!qt->_sleep);
-                }
-                if (lockUnlockDispatch) {
-                    _mutexBackgroundQueues.Unlock();
-                }
-                return qt;
+        assert(!qt->_disabled);
+
+        if (lockQueue) {   
+            qt->Lock("GetFreeQueue 1");
+        }
+        
+        // check if it just has changed
+        if (qt->_removing ||
+            qt->_operationsCount != 0 ||
+            !qt->GetIsReady()) {
+                
+            if (lockQueue) {
+                qt->Unlock();
             }
-            q = qt;
+            continue;
         }
-        else if (qtc < qlowestCount) {
-            qlowestCount = qtc;
-            qlowest = qt;
+        
+        if (lockUnlockDispatch) {
+            _mutexBackgroundQueues.Unlock();
         }
+        return qt;
     }
     
-    if (q == nullptr) {
-        if (_backgroundQueuesCount < _backgroundQueuesDesiredCount) {
-            auto queue = DispatchBackgroundQueueP(new DispatchBackgroundQueue(this));
-            _backgroundQueues.push_back(queue);
-            _backgroundQueuesCount = _backgroundQueues.size();
-            
-            // locks
-            if (lock) {
-                queue->Lock("GetFreeQueue 2");
-            }
-            assert(!queue->_sleep);
-            if (lockUnlockDispatch) {
-                _mutexBackgroundQueues.Unlock();
-            }
-            return queue;
+    if (_backgroundQueuesCount < _backgroundQueuesDesiredCount) 
+    {
+        auto queue = DispatchBackgroundQueueP(new DispatchBackgroundQueue(this));
+        _backgroundQueues.push_back(queue);
+        _backgroundQueuesCount = _backgroundQueues.size();
+        
+        // locks
+        if (lockQueue) {
+            queue->Lock("GetFreeQueue 2");
         }
-        else {
-            q = qlowest;
+        assert(!queue->_sleep);
+        if (lockUnlockDispatch) {
+            _mutexBackgroundQueues.Unlock();
         }
+        return queue;
     }
-    // locks
-    if (lock) {
-        if (q != nullptr) {
-            q->Lock("GetFreeQueue 3");
-            assert(!q->_sleep);
-        }
-    }
+    
+    auto result = GetLeastBusyQueue(true, exceptQueue, false);
+    
     if (lockUnlockDispatch) {
         _mutexBackgroundQueues.Unlock();
     }
-    assert(!q->_sleep);
-    return q;
+    
+    return result; 
 }
 
 void Dispatch::FlushMainThread()
@@ -439,6 +485,14 @@ void Dispatch::ExecuteNextPendingGroup(DispatchQueue *emptyQueue, bool queueLock
             
             if (_backgroundQueuesCount > _backgroundQueuesDesiredCount) {
                 _mutexBackgroundQueues.Lock("ExecuteNextPendingGroup1");
+                if (emptyQueue->_operationsCount != 0) {
+                    _mutexBackgroundQueues.Unlock();
+                    if (!queueLocked) {
+                        emptyQueue->Unlock();
+                    }
+                    _mutexGroups.unlock();
+                    return;
+                }
                 QueueHaveNoTasks(emptyQueue);
                 _mutexBackgroundQueues.Unlock();
             }
@@ -567,23 +621,20 @@ void Dispatch::BackgroundQueueWaitDone(DispatchBackgroundQueueP pausedQueue, con
             }
         }
         {
-//            if (_backgroundQueuesCount < _backgroundQueuesDesiredCount) {
+            if (_backgroundQueuesCount < _backgroundQueuesDesiredCount) {
                 _backgroundQueues.push_back(pausedQueue);
                 _backgroundQueuesCount = _backgroundQueues.size();
-//            }
-//            else {
-//                assert(pausedQueue->_operationsCount == 0);
-//                pausedQueue->_disabled = true;
-//                pausedQueue->Lock("BackgroundQueueWaitDone");
-//                assert(pausedQueue->_operationsCount == 0);
-//                _mutexBackgroundQueuesToRemove.lock();
-//                _backgroundQueuesToRemove.push_back(pausedQueue);
-//#if defined DEBUG
-//                printf("Move queue to paused 1 %p\n", (void *) pausedQueue.get());
-//#endif
-//                _mutexBackgroundQueuesToRemove.unlock();
-//                pausedQueue->Unlock();
-//            }
+            }
+            else {
+                assert(pausedQueue->_operationsCount == 0);
+                pausedQueue->_disabled = true;
+                _mutexBackgroundQueuesToRemove.lock();
+                _backgroundQueuesToRemove.push_back(pausedQueue);
+#if defined DEBUG
+                printf("Move queue to paused 1 %p\n", (void *) pausedQueue.get());
+#endif
+                _mutexBackgroundQueuesToRemove.unlock();
+            }
         }
         
         pausedQueue->_sleep = false;
@@ -621,6 +672,7 @@ void Dispatch::BackgroundQueueAssignEvacuated(const DispatchOperationP &operatio
 //    }
     
     DispatchQueue *q = GetFreeQueue(true, from, lockUnlock).get();
+    assert(q != nullptr);
     q->AddOperation(operation, false);
     q->Unlock();
     
@@ -658,7 +710,7 @@ void Dispatch::PerformAndWait(const std::vector<DispatchWork> &works, DispatchGr
     
     std::shared_ptr<DispatchLock> sync = std::shared_ptr<DispatchLock>(new DispatchLock());
     auto result = SharedDispatch()->PerformGroup(works, [sync, &q](DispatchOperation *o)->void {
-        if (q._queue) {
+        if (q._queue != nullptr) {
             Dispatch::SharedDispatch()->BackgroundQueueWaitDone(q._queue, sync);
         }
         else {
@@ -702,6 +754,7 @@ DispatchOperationP Dispatch::InternalPerformOnBackgroundQueue(const DispatchWork
 {
 //    _mutexBackgroundQueues.Lock("InternalPerformOnBackgroundQueue");
     DispatchQueue *q = GetFreeQueue(true, nullptr, true).get();
+    assert(q != nullptr);
     DispatchOperationP p = DispatchOperationP(new DispatchOperation(work));
     q->AddOperation(p, false);
     q->Unlock();

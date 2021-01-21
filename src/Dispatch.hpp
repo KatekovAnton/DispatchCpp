@@ -72,6 +72,7 @@ public:
     bool _processed;
     std::condition_variable _cv;
     std::mutex _m;
+    std::unique_lock<std::mutex> lk;
     
     DispatchLock();
     ~DispatchLock();
@@ -109,6 +110,7 @@ public:
 class DispatchOperation {
     
     friend class DispatchQueue;
+    friend class Dispatch;
     
     DispatchWork _work;
     std::atomic<DispatchOperationState> _state;
@@ -121,10 +123,10 @@ public:
     
     DispatchOperation(const DispatchWork &work);
 
-    DispatchOperationState GetState() { return _state; };
-    bool IsCancelled() { return _state == DispatchOperationState::DispatchOperationState_Cancelled; }
+    virtual DispatchOperationState GetState() { return _state; };
+    virtual bool IsCancelled() { return _state == DispatchOperationState::DispatchOperationState_Cancelled; }
     
-    void Cancel();
+    virtual void Cancel();
     
 };
 
@@ -211,7 +213,9 @@ public:
     Dispatch();
     static Dispatch *SharedDispatch();
     
-    DispatchQueueP GetFreeQueue(bool lock, DispatchQueue *exceptQueue, bool lockUnlockDispatch);
+    DispatchQueueP GetLeastBusyQueue(bool lockQueue, DispatchQueue *exceptQueue, bool lockUnlockDispatch);
+    DispatchQueueP GetFreeQueue(bool lockQueue, DispatchQueue *exceptQueue, bool lockUnlockDispatch);
+    DispatchQueueP CreateSpecialQueueWithId(const std::string &queueId);
     
     void FlushMainThread();
     bool IsMainThread();

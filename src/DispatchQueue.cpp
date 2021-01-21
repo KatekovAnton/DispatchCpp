@@ -12,6 +12,10 @@
 
 
 
+static std::thread::id emptyThreadId;
+
+
+
 DispatchQueue::DispatchQueue(Dispatch *owner)
 :_removing(false)
 ,_working(false)
@@ -62,10 +66,10 @@ bool DispatchQueue::ExecuteNext()
 {
     Lock("ExecuteNext() 1");
     if (_disabled) {
-//        printf("Queue exit because disabled\n");
         Unlock();
         return false;
     }
+    assert(!_sleep);
     if (_operations.size() == 0)
     {
         // report to owner
@@ -178,6 +182,7 @@ void DispatchMainQueue::LaunchExecution()
 
 DispatchBackgroundQueue::DispatchBackgroundQueue(Dispatch *owner)
 :DispatchQueue(owner)
+,_threadId(emptyThreadId)
 ,_thread(NULL)
 {
     
@@ -185,14 +190,13 @@ DispatchBackgroundQueue::DispatchBackgroundQueue(Dispatch *owner)
 
 DispatchBackgroundQueue::~DispatchBackgroundQueue()
 {
-    printf("DispatchBackgroundQueue::~DispatchBackgroundQueue()");
-//    assert(_thread == nullptr);
-    _mutex.lock();
+    _mutexThread.lock();
     if (_thread != NULL) {
         delete _thread;
         _thread = NULL;
+        _threadId = emptyThreadId;
     }
-    _mutex.unlock();
+    _mutexThread.unlock();
 }
 
 bool DispatchBackgroundQueue::GetIsReady() 
@@ -202,28 +206,26 @@ bool DispatchBackgroundQueue::GetIsReady()
 
 void DispatchBackgroundQueue::LaunchExecution()
 {
-    _mutex.lock();
+    _mutexThread.lock();
     if (_thread == NULL)
     {
-//#if DEBUG
-//        printf("DispatchBackgroundQueue: running new thread\n");
-//#endif
         _thread = new DispatchThread(this);
         _thread->start();
     }
-    _mutex.unlock();
+    _mutexThread.unlock();
 }
 
 bool DispatchBackgroundQueue::GetIsBusy()
 {
+    _mutexThread.lock();
     bool result = GetOpertaionsCount() > 0;
     if (!result) {
+        _mutexThread.unlock();
         return false;
     }
     // do we need a lock here?
-    _mutex.lock();
     result = _thread != NULL;
-    _mutex.unlock();
+    _mutexThread.unlock();
     return result;
 }
 
@@ -234,6 +236,7 @@ bool DispatchBackgroundQueue::GetIsThreadWithId(const std::thread::id threadId)
 
 void DispatchBackgroundQueue::ThreadExecuting(DispatchThread *sender)
 {
+    assert(_threadId == emptyThreadId);
     _threadId = sender->getId();
     while (ExecuteNext())
     {}
@@ -241,10 +244,11 @@ void DispatchBackgroundQueue::ThreadExecuting(DispatchThread *sender)
 
 void DispatchBackgroundQueue::ThreadDidFinish(DispatchThread *sender)
 {
-    _mutex.lock();
+    _mutexThread.lock();
     DispatchThread *t = _thread;
-    _thread = NULL;
-    _mutex.unlock();
+    _thread = nullptr;
+    _threadId = emptyThreadId;
+    _mutexThread.unlock();
     delete t;
     
     if (_operationsCount != 0) {

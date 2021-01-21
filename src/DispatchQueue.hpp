@@ -14,7 +14,7 @@
 #include <vector>
 #include <atomic>
 #include <functional>
-#include <DispatchThread.hpp>
+#include "DispatchThread.hpp"
 
 
 
@@ -98,7 +98,7 @@ class DispatchBackgroundQueue : public DispatchQueue, public DispatchThreadDeleg
     
     friend class Dispatch;
     
-    std::mutex _mutex;
+    std::mutex _mutexThread;
     std::thread::id _threadId;
     DispatchThread *_thread;
     

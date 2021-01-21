@@ -307,6 +307,7 @@ void testNestedWaitsFromGroup()
 {
     static const int amount = 500 * complexityMultiplier;
     static const int complexity = 1000;
+    static const int internalComplexity = 500;
 
     Timer t;
     t.start();
@@ -331,9 +332,23 @@ void testNestedWaitsFromGroup()
                 std::vector<DispatchWork> worksNested;
                 for (int in = 0; in < nestedCount; in++) {
                     worksNested.push_back([i, in, &completedNested, &nestedCompletedCount](DispatchOperation *operation){
-                        heavyCalculation(complexity);
+                        heavyCalculation(internalComplexity);
                         completedNested.increase();
                         nestedCompletedCount.increase();
+                        
+                        if (in % 200 == 0) {
+                            // spawn internal more
+                            
+                            std::vector<DispatchWork> worksNested;
+                            for (int in = 0; in < 100; in++) {
+                                worksNested.push_back([](DispatchOperation *operation){
+                                    heavyCalculation(internalComplexity / 2);
+                                });
+                            }
+                            Dispatch::SharedDispatch()->PerformAndWait(worksNested, nullptr);
+                            
+                        }
+                        
                         printf("complete nested %d (%d)!\n", i, in);
                     });
                 }
