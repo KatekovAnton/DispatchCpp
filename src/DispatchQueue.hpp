@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <mutex>
+#include <memory>
 #include <vector>
 #include <atomic>
 #include <functional>
