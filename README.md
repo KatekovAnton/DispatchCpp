@@ -16,7 +16,8 @@ Tested on: windows, macOS
 - tracking states for both operation and group operation
 - cancel operation, cancel group operation
 - parallel loops - lock "current" thread and wait for number of tasks to finish
-- running not more than a reasonable amount of threads (based on `std::thread::hardware_concurrency`)
+- nested parallel loops with a shared thread pool
+- running not more than a reasonable amount of threads (based on `std::thread::hardware_concurrency`) (maybe a bit more sometimes)
 - no external dependancies except std
 - c++ 11
 

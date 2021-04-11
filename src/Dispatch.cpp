@@ -71,12 +71,10 @@ void DispatchReadWriteLock::WriteUnlock() {
 DispatchLock::DispatchLock()
 : _locked (true)
 , _processed (false)
-, lk (_m)
 {}
 
 DispatchLock::~DispatchLock()
 {
-    // stupid situation but ok...
     if (_locked && !_processed) {
         Unlock();
     }
@@ -84,6 +82,7 @@ DispatchLock::~DispatchLock()
 
 void DispatchLock::Lock()
 {
+	std::unique_lock<std::mutex> lk(_m);
     _cv.wait(lk, [this] {
         return this->_processed;
     });

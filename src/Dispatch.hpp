@@ -73,7 +73,6 @@ public:
     bool _processed;
     std::condition_variable _cv;
     std::mutex _m;
-    std::unique_lock<std::mutex> lk;
     
     DispatchLock();
     ~DispatchLock();
