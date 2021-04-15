@@ -34,7 +34,7 @@ configure_mac:
 .PHONY: app_build
 app_build:
 	cd build && \
-	cmake --build . --target dispatchcpp -- -j 15
+	cmake --build . --config RelWithDebInfo --target dispatchcpp -- -j 15
 
 
 

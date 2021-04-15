@@ -58,7 +58,10 @@ if (PROJECT_OS_WIN32)
     include_directories("${SRC_DIR}/platform/win32")
 endif()
 if (PROJECT_OS_LINUX)
-    # TODO
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/linux/platform_lin.cpp")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/linux/platform_lin.h")
+    
+    include_directories("${SRC_DIR}/platform/linux")
 endif()
 
 
@@ -124,31 +127,8 @@ if (PROJECT_OS_MACOS)
 endif()
 if (PROJECT_OS_LINUX)
 
-    set(CMAKE_C_COMPILER "/usr/bin/clang")
-    set(CMAKE_CXX_COMPILER "clang++")
-    
-    #add_definitions(-DSSE)
-    
-    #SSE стоит включать в релизе. в дебаге тормозит
-    option(SSE "Compile with support for SSE instructions." ON)
-    option(SSE2 "Compile with support for SSE2 instructions." ON)
+    target_link_libraries(${PROJECT_NAME} pthread)
 
-    if (SSE)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse -mfpmath=sse")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse -mfpmath=sse")
-    endif()
-    if (SSE41)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.1")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.1")
-    endif()
-    if (SSE42)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2")
-    endif()
-
-    #set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fsanitize=address -fno-omit-frame-pointer -fcolor-diagnostics -std=c++${CMAKE_CXX_STANDARD}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -Wno-undefined-var-template")
-    
 endif()
 if (PROJECT_OS_WIN32)
 
