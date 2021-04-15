@@ -41,8 +41,8 @@ file(GLOB_RECURSE PROJECT_SOURCES
 # platform-dependant sources
 if (PROJECT_OS_MACOS)
     # tested with Xcode 
-    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/platform_mac.mm")
-    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/platform_mac.h")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/Platform_mac.mm")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/Platform_mac.h")
     list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/smc.h")
     list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/SMCWrapper.h")
     list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/mac/SMCWrapper.m")
@@ -52,14 +52,14 @@ endif()
 if (PROJECT_OS_WIN32)
     # tested with
     # cmake -G "Visual Studio 16 2019" ..
-    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/win32/platform_win.cpp")
-    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/win32/platform_win.h")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/win32/Platform_win.cpp")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/win32/Platform_win.h")
     
     include_directories("${SRC_DIR}/platform/win32")
 endif()
 if (PROJECT_OS_LINUX)
-    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/linux/platform_lin.cpp")
-    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/linux/platform_lin.h")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/linux/Platform_lin.cpp")
+    list (APPEND PROJECT_SOURCES "${PROJECT_SOURCE_DIR}/platform/linux/Platform_lin.h")
     
     include_directories("${SRC_DIR}/platform/linux")
 endif()
